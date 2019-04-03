@@ -1,7 +1,0 @@
-HTTP/1.1 304 Not Modified
-Server: nginx/1.6.2
-Date: Wed, 03 Apr 2019 10:03:44 GMT
-Last-Modified: Sun, 23 Aug 2015 08:51:51 GMT
-Connection: keep-alive
-ETag: "55d989a7-5b80"
-

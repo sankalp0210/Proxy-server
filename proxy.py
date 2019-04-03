@@ -1,6 +1,7 @@
 import os
 import time
 import base64
+import datetime
 import socket
 import threading
 import SocketServer
@@ -9,6 +10,7 @@ import SimpleHTTPServer
 
 BLACKLIST = "block.txt"
 AUTHFILE = "auth.txt"
+BUFFER_SIZE = 1024
 
 class server():
 
@@ -54,7 +56,7 @@ class server():
             s.sendall(request)
 
             while True:
-                data = s.recv(262144)
+                data = s.recv(BUFFER_SIZE)
                 if len(data) > 0 :
                     conn.send(data)
                 else:
@@ -67,17 +69,41 @@ class server():
             print e
             sys.exit(0)
         
-    def getreq(self,host,port,request,conn,filename):
-        # url = request.splitlines()[0].split(' ')[1]
-        # filename = url.find('/',8,len(url))
+    def getreq(self,host,port,request,conn,filen):
+        url = request.splitlines()[0].split(' ')[1]
+        filename = url.replace("/",";")
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.connect((host, port))
+            # s.sendall(request)
+            if filename in os.listdir('./.cache'):
+                # s.send("GET "+ url + " HTTP/1.1\r\nIf-Modified-Since: " + time.ctime(os.path.getmtime('./.cache/' + filename)) + " \r\n\r\n")
+                # request = request.splitlines()[0] + 'If-Modified-Since: ' + time.ctime(os.path.getmtime('./.cache/' + filename)) + '\r\n\r\n'
+                tobesent = request.split("\r\n")
+                while tobesent[len(tobesent)-1] == '':
+                    tobesent.remove('')
+                tm = time.ctime(os.path.getmtime('./.cache/' +filename))
+                bt = os.path.getmtime('./.cache/' +filename)
+                tme = str(datetime.datetime.utcfromtimestamp(bt))
+                tme = tme.split(' ')[1].split('.')[0]
+                tm = tm.split(' ')
+                tm.remove('')
+                day = tm[0]
+                month = tm[1]
+                date = tm[2]
+                # tme = tm[3]
+                year = tm[4]
+                # print tm
+                header = "If-Modified-Since: " + day + ", " + date + " " + month + " " + year + " " + tme + " GMT"
+                # header = "If-Modified-Since: " + "Wed, 03 Apr 2019 15:00:00 GMT"
+                tobesent.append(header)
+                request = "\r\n".join(tobesent) + "\r\n\r\n"
+            print request
             s.sendall(request)
-            data = s.recv(262144)
-            print data
-            if data.splitlines()[0].find("200"):
-                print ("bt")
+            data = s.recv(BUFFER_SIZE)
+            
+            if data.splitlines()[0].find("200") != -1:
+                print("without using cache")
                 if host in self.count_occurance:
                     self.count_occurance[host] += 1
                 else:
@@ -86,21 +112,23 @@ class server():
                 if self.count_occurance[host]>=3:
                     flag = True
                 if flag:
-                    file = open(os.path.join('./.cache/',filename),'wb')
+                    file = open('./.cache/' + filename,'w+')
+                    # file = open(os.path.join('./.cache/',filename),'w+')
                 while len(data):
+                    conn.send(data)
                     if flag: 
                         file.write(data)
-                    conn.send(data)
-                    data = s.recv(262144)
-                if flag: file.close()
+                    data = s.recv(BUFFER_SIZE)
+                if flag:
+                    file.close()
 
-            elif data.splitlines()[0].find("304"):
+            elif data.splitlines()[0].find("304") != -1:
                 print ("304:Using Cache")
                 file = open(os.path.join('./.cache/',filename),'rb')
-                l = file.read(262144)
+                l = file.read(BUFFER_SIZE)
                 while(l):
                     conn.send(l)
-                    l = file.read(262144)
+                    l = file.read(BUFFER_SIZE)
                 file.close()
             else:
                 print "==>>Response ", data
@@ -114,9 +142,9 @@ class server():
         s.close()
 
     def serve_request(self, conn, addr):
-        request = conn.recv(262144)
+        request = conn.recv(BUFFER_SIZE)
         lines = request.splitlines()
-        print request
+        # print request
         if len(lines) == 0 :
             return
         auth_line = [ line for line in lines if "Authorization" in line]
