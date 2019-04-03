@@ -10,6 +10,7 @@ class server():
 
     def __init__(self):
         self.cache = {}
+        self.count_occurance = dict()
         if os.path.isdir('./.cache'):
             print("Using the existing cache")
         else:
@@ -24,6 +25,17 @@ class server():
             raise
         except:
             print "Cannot initialise"
+
+    def set_interval(self,func, sec):
+        def func_wrapper():
+            self.set_interval(func, sec)
+            func()
+        t = threading.Timer(sec, func_wrapper)
+        t.start()
+        return t 
+    def clear(self):
+        self.count_occurance = {}
+        self.cache = {}       
     
     def postreq(self,host,port,request,conn):
         try:
@@ -55,9 +67,18 @@ class server():
             # print data
             if data.splitlines()[0].find("200"):
                 print ("bt")
-                file = open(os.path.join('./.cache/',filename),'wb')
+                if host in self.count_occurance:
+                    self.count_occurance[host] += 1
+                else:
+                    self.count_occurance[host] = 1
+                flag = False        
+                if self.count_occurance[host]>=3:
+                    flag = True
+                if flag:
+                    file = open(os.path.join('./.cache/',filename),'wb')
                 while len(data):
-                    file.write(data)
+                    if flag: 
+                        file.write(data)
                     conn.send(data)
                     data = s.recv(262144)
                 file.close()
@@ -105,7 +126,8 @@ class server():
 
         conn.close()
 
-    def begin(self):	
+    def begin(self):
+        self.set_interval(self.clear,5*60)
         while True:
             try:
                 conn, addr = self.sock.accept()
