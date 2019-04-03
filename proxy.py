@@ -6,9 +6,11 @@ import SocketServer
 import sys
 import SimpleHTTPServer
 
+BLACKLIST = "block.txt"
 class server():
 
     def __init__(self):
+        self.blocked = []
         self.cache = {}
         self.count_occurance = dict()
         if os.path.isdir('./.cache'):
@@ -21,8 +23,10 @@ class server():
             self.sock.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR, 1)
             self.sock.bind(('', 20100))
             self.sock.listen(10)
+        
         except (KeyboardInterrupt, SystemExit):
             raise
+        
         except:
             print "Cannot initialise"
 
@@ -32,7 +36,8 @@ class server():
             func()
         t = threading.Timer(sec, func_wrapper)
         t.start()
-        return t 
+        return t
+        
     def clear(self):
         self.count_occurance = {}
         self.cache = {}       
@@ -50,7 +55,8 @@ class server():
                     conn.send(data)
                 else:
                     break
-
+        except (KeyboardInterrupt, SystemExit):
+            raise
         except Exception as e:
             s.close()
             conn.close()
@@ -81,7 +87,8 @@ class server():
                         file.write(data)
                     conn.send(data)
                     data = s.recv(262144)
-                file.close()
+                if flag: file.close()
+
             elif data.splitlines()[0].find("304"):
                 print ("304:Using Cache")
                 file = open(os.path.join('./.cache/',filename),'rb')
@@ -92,7 +99,10 @@ class server():
                 file.close()
             else:
                 print "==>>Response ", data
-
+        
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        
         except Exception as e:
             print e
             sys.exit(0)
@@ -112,13 +122,24 @@ class server():
         # print filename
         # print "file\n\n\n\n"
         host = lines[1].split(' ')[1]
+        print host
         if pos_port == -1:
             port = 80
         else :
             port = url[pos_port+1:]
             port = int(port[:len(port)-1])
-
-        if method == "POST" :
+        blckflag = False
+        if host in self.blocked:
+            blckflag = True
+        if blckflag:
+            print "The given Hostname:%s is blocked for you.For further details contact your ISP" % host
+            conn.send("HTTP/1.0 200 OK\r\nContent-Length: 22\r\n\r\nWebsite is Blocked\r\n\r\n")
+            # conn.send("HTTP/1.0 200 OK\r\n")
+            # conn.send("Content-Length: 11\r\n")
+            # conn.send("\r\n")
+            # conn.send("Error\r\n")
+            # conn.send("\r\n\r\n")
+        elif method == "POST":
             self.postreq(host,port,request,conn)
 
         elif method == "GET":
@@ -127,7 +148,10 @@ class server():
         conn.close()
 
     def begin(self):
-        self.set_interval(self.clear,5*60)
+        # try:
+        #     self.set_interval(self.clear,5*60)
+        # except (KeyboardInterrupt, SystemExit):
+        #     raise
         while True:
             try:
                 conn, addr = self.sock.accept()
@@ -139,6 +163,15 @@ class server():
             except:
                 print "Could not accept request"
 
-
 ser = server()
+
+file = open(BLACKLIST,"rb")
+data = ""
+chunks = file.read()
+while chunks:
+    data += chunks
+    chunks = file.read()
+file.close()    
+ser.blocked = data.splitlines()
+
 ser.begin()
