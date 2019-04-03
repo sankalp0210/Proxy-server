@@ -1,0 +1,19 @@
+HTTP/1.1 304 Not Modified
+Date: Wed, 03 Apr 2019 09:44:43 GMT
+Server: Apache
+ETag: "2f1-582e43860f968"
+Expires: Fri, 03 May 2019 19:44:43 GMT
+Cache-Control: max-age=2628000
+X-Content-Type-Options: nosniff
+Last-Modified: Wed, 27 Feb 2019 18:19:53 GMT
+Content-Type: image/png
+X-Varnish: 196314735 199918030
+Age: 1328
+Via: 1.1 varnish-v4
+grace: none
+X-Cache: MISS from proxy
+X-Cache-Lookup: MISS from proxy:8080
+Connection: keep-alive
+
+p-alive
+

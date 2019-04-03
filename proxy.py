@@ -1,5 +1,6 @@
 import os
 import time
+import base64
 import socket
 import threading
 import SocketServer
@@ -7,11 +8,14 @@ import sys
 import SimpleHTTPServer
 
 BLACKLIST = "block.txt"
+AUTHFILE = "auth.txt"
+
 class server():
 
     def __init__(self):
         self.blocked = []
         self.cache = {}
+        self.users = []
         self.count_occurance = dict()
         if os.path.isdir('./.cache'):
             print("Using the existing cache")
@@ -64,13 +68,14 @@ class server():
             sys.exit(0)
         
     def getreq(self,host,port,request,conn,filename):
+        # url = request.splitlines()[0].split(' ')[1]
+        # filename = url.find('/',8,len(url))
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            # s.settimeout(50)
             s.connect((host, port))
             s.sendall(request)
             data = s.recv(262144)
-            # print data
+            print data
             if data.splitlines()[0].find("200"):
                 print ("bt")
                 if host in self.count_occurance:
@@ -111,39 +116,36 @@ class server():
     def serve_request(self, conn, addr):
         request = conn.recv(262144)
         lines = request.splitlines()
-        # print request
+        print request
         if len(lines) == 0 :
             return
+        auth_line = [ line for line in lines if "Authorization" in line]
+        if len(auth_line):
+            auth_line = auth_line[0].split(' ')[2]
+        else:
+            auth_line = None
         method = lines[0].split(' ')[0]
         url = lines[0].split(' ')[1]
+        # print url
         pos_port = url.find(':',5,len(url))
         file_pos = url.find('/',8,len(url))
         filename = 'bt' + url[file_pos+1:].split('/')[0]
-        # print filename
-        # print "file\n\n\n\n"
         host = lines[1].split(' ')[1]
-        print host
         if pos_port == -1:
             port = 80
         else :
             port = url[pos_port+1:]
             port = int(port[:len(port)-1])
         blckflag = False
-        if host in self.blocked:
+        if host in self.blocked and auth_line not in self.users:
             blckflag = True
         if blckflag:
             print "The given Hostname:%s is blocked for you.For further details contact your ISP" % host
             conn.send("HTTP/1.0 200 OK\r\nContent-Length: 22\r\n\r\nWebsite is Blocked\r\n\r\n")
-            # conn.send("HTTP/1.0 200 OK\r\n")
-            # conn.send("Content-Length: 11\r\n")
-            # conn.send("\r\n")
-            # conn.send("Error\r\n")
-            # conn.send("\r\n\r\n")
         elif method == "POST":
             self.postreq(host,port,request,conn)
-
         elif method == "GET":
-            self.getreq(host,port,request,conn,filename)    
+            self.getreq(host,port,request,conn, filename)
 
         conn.close()
 
@@ -151,7 +153,7 @@ class server():
         # try:
         #     self.set_interval(self.clear,5*60)
         # except (KeyboardInterrupt, SystemExit):
-        #     raise
+        #     sys.exit(0)
         while True:
             try:
                 conn, addr = self.sock.accept()
@@ -164,14 +166,25 @@ class server():
                 print "Could not accept request"
 
 ser = server()
-
+# reading and storing blacklisted URL's
 file = open(BLACKLIST,"rb")
 data = ""
 chunks = file.read()
 while chunks:
     data += chunks
     chunks = file.read()
-file.close()    
+file.close()
 ser.blocked = data.splitlines()
 
+# reading and storing username and passwords
+file = open(AUTHFILE,"rb")
+data = ""
+chunks = file.read()
+while chunks:
+    data += chunks
+    chunks = file.read()
+file.close()
+data = data.splitlines()
+for d in data:
+    ser.users.append(base64.b64encode(d))
 ser.begin()
